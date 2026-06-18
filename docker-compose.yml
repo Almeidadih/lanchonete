@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: lanchonete-rabbitmq
+    hostname: lanchonete-rabbit
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq/mnesia
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping", "-q"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+
+  lanchonete:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lanchonete
+    ports:
+      - "8080:8080"
+    environment:
+
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASS}
+
+      LOGGING_LEVEL_COM_LANCHONETE: DEBUG
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+
+volumes:
+  rabbitmq_data:
+    driver: local
