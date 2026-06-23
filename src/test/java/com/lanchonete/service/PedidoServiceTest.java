@@ -6,12 +6,15 @@ import com.lanchonete.domain.enums.CategoriaProduto;
 import com.lanchonete.domain.enums.StatusPedido;
 import com.lanchonete.dto.PedidoRequestDTO;
 import com.lanchonete.dto.PedidoResponseDTO;
+import com.lanchonete.exception.OperacaoInvalidaException;
+import com.lanchonete.exception.RecursoNaoEncontradoException;
 import com.lanchonete.messaging.PedidoProducer;
 import com.lanchonete.repository.PedidoRepository;
 import com.lanchonete.repository.ProdutoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -23,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -102,6 +106,44 @@ class PedidoServiceTest {
             verify(pedidoProducer, times(1)).publicarNovoPedido(10L);
             verify(pedidoRepository, times(1)).save(any(Pedido.class));
         }
+
+        @Test
+        @DisplayName("deve lançar 404 quando produto não existir no cardápio")
+        void deveLancarExcecaoQuandoProdutoNaoExistir(){
+            // Arrange
+            PedidoRequestDTO dto = new PedidoRequestDTO();
+            dto.setProdutoIds(List.of(999L)); // ID inexistente
+
+            when(produtoRepository.findById(999L)).thenReturn(Optional.empty());
+
+            // Act & Assert
+            assertThatThrownBy(() -> pedidoService.criar(dto))
+                    .isInstanceOf(RecursoNaoEncontradoException.class)
+                    .hasMessageContaining("999");
+
+            // Garante que NÃO foi salvo nem publicado
+            verify(pedidoRepository,never()).save(any());
+            verify(pedidoProducer, never()).publicarNovoPedido(anyLong());
+        }
+
+        @Test
+        @DisplayName("deve lançar 422 quando produto estiver indisponível")
+        void deveLancarExcecaoQuandoProdutoIndisponivel(){
+            // Arrange
+            PedidoRequestDTO dto = new PedidoRequestDTO();
+            dto.setProdutoIds(List.of(2L));
+
+            when(produtoRepository.findById(2L)).thenReturn(Optional.of(produtoIndisponivel));
+
+            // Act & Assert
+            assertThatThrownBy(() -> pedidoService.criar(dto))
+                    .isInstanceOf(OperacaoInvalidaException.class)
+                    .hasMessageContaining("Produto Esgotado");
+            verify(pedidoRepository,never()).save(any());
+            verify(pedidoProducer, never()).publicarNovoPedido(anyLong());
+        }
+
+        
 
     }
 
