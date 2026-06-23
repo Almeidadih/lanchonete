@@ -32,7 +32,7 @@ public class WebSocketNotificationService {
         messagingTemplate.convertAndSend("📡 [WS] Notificação EM_PREPARO enviada para /topic/cozinha");
     }
     @Async
-    public void notificarPedidoEmPronto(UUID pedidoId){
+    public void notificarPedidoPronto(UUID pedidoId){
         PedidoNotificacaoDTO notificacao = PedidoNotificacaoDTO.pronto(pedidoId);
 
         // Notifica o cliente diretamente
