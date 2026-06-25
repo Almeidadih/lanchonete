@@ -143,7 +143,107 @@ class PedidoServiceTest {
             verify(pedidoProducer, never()).publicarNovoPedido(anyLong());
         }
 
-        
+// =========================================================
+        // Cenários: transição de status
+        // =========================================================
+
+        @Nested
+        @DisplayName("marcarComoPronto()")
+        class MarcarComoPronto {
+
+            @Test
+            @DisplayName("deve transicionar de EM_PREPARO para PRONTO e publicar no RabbitMQ")
+            void deveMarcarComoProntoQuandoEmPreparo() {
+                // Arrange
+                Pedido pedido = Pedido.builder()
+                        .id(1L)
+                        .produtos(List.of(produtoDisponivel))
+                        .status(StatusPedido.EM_PREPARO)
+                        .dataHoraCriacao(LocalDateTime.now())
+                        .build();
+
+                when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+                when(pedidoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+                // Act
+                PedidoResponseDTO resultado = pedidoService.marcarComoPronto(1L);
+
+                // Assert
+                assertThat(resultado.getStatus()).isEqualTo(StatusPedido.PRONTO);
+                verify(pedidoProducer, times(1)).publicarPedidoPronto(1L);
+            }
+
+            @Test
+            @DisplayName("deve lançar 422 se pedido não estiver EM_PREPARO")
+            void deveLancarExcecaoSeStatusNaoForEmPreparo() {
+                // Arrange — pedido ainda RECEBIDO
+                Pedido pedido = Pedido.builder()
+                        .id(1L)
+                        .status(StatusPedido.RECEBIDO)
+                        .dataHoraCriacao(LocalDateTime.now())
+                        .build();
+
+                when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+
+                // Act & Assert
+                assertThatThrownBy(() -> pedidoService.marcarComoPronto(1L))
+                        .isInstanceOf(OperacaoInvalidaException.class)
+                        .hasMessageContaining("RECEBIDO");
+
+                verify(pedidoProducer, never()).publicarPedidoPronto(anyLong());
+            }
+        }
+
+        @Nested
+        @DisplayName("confirmarEntrega()")
+        class ConfirmarEntrega {
+
+            @Test
+            @DisplayName("deve transicionar de PRONTO para ENTREGUE")
+            void deveConfirmarEntregaQuandoPronto() {
+                // Arrange
+                Pedido pedido = Pedido.builder()
+                        .id(1L)
+                        .produtos(List.of(produtoDisponivel))
+                        .status(StatusPedido.PRONTO)
+                        .dataHoraCriacao(LocalDateTime.now())
+                        .build();
+
+                when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+                when(pedidoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+                // Act
+                PedidoResponseDTO resultado = pedidoService.confirmarEntrega(1L);
+
+                // Assert
+                assertThat(resultado.getStatus()).isEqualTo(StatusPedido.ENTREGUE);
+            }
+
+            @Test
+            @DisplayName("deve lançar 422 ao tentar entregar pedido não PRONTO")
+            void deveLancarExcecaoSePedidoNaoPronto() {
+                Pedido pedido = Pedido.builder()
+                        .id(1L)
+                        .status(StatusPedido.EM_PREPARO)
+                        .dataHoraCriacao(LocalDateTime.now())
+                        .build();
+
+                when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+
+                assertThatThrownBy(() -> pedidoService.confirmarEntrega(1L))
+                        .isInstanceOf(OperacaoInvalidaException.class)
+                        .hasMessageContaining("EM_PREPARO");
+            }
+
+            @Test
+            @DisplayName("deve lançar 404 para pedido inexistente")
+            void deveLancar404ParaPedidoInexistente() {
+                when(pedidoRepository.findById(99L)).thenReturn(Optional.empty());
+
+                assertThatThrownBy(() -> pedidoService.confirmarEntrega(99L))
+                        .isInstanceOf(RecursoNaoEncontradoException.class);
+            }
+        }
 
     }
 
