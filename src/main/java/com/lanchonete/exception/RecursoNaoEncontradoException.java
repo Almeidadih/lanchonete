@@ -9,6 +9,6 @@ public class RecursoNaoEncontradoException extends RuntimeException {
     }
 
     public RecursoNaoEncontradoException(String recurso, UUID id) {
-        super(String.format("%s com o id %d não encontrado(a)", recurso,id));
+        super(String.format("%s com o id %s não encontrado(a)", recurso,id));
     }
 }

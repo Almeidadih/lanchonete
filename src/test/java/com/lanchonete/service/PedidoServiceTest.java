@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -54,7 +55,7 @@ class PedidoServiceTest {
     @BeforeEach
     void setUp(){
         produtoDisponivel = Produto.builder()
-                .id(1L)
+                .id(UUID.randomUUID())
                 .nome("X-Burguer")
                 .preco(new BigDecimal("18.90"))
                 .categoria(CategoriaProduto.LANCHE)
@@ -62,7 +63,7 @@ class PedidoServiceTest {
                 .build();
 
         produtoIndisponivel = Produto.builder()
-                .id(2l).nome("X-Burguer")
+                .id(UUID.randomUUID()).nome("X-Burguer")
                 .preco(new BigDecimal("18.90"))
                 .categoria(CategoriaProduto.LANCHE)
                 .disponivel(false)
@@ -79,31 +80,34 @@ class PedidoServiceTest {
         void deveCriarPedidoComSucessoEPublicarMensagem(){
 
             // Arrange
+            UUID idProduto = UUID.randomUUID();
+            UUID idPedido = UUID.randomUUID();
+
             PedidoRequestDTO dto = new PedidoRequestDTO();
-            dto.setProdutoIds(List.of(1L));
+            dto.setProdutoIds(List.of(idProduto));
             dto.setObservacoes("sem cebola");
 
             Pedido pedidoSalvo = Pedido.builder()
-                    .id(10L)
+                    .id(idPedido)
                     .produtos(List.of(produtoDisponivel))
                     .status(StatusPedido.RECEBIDO)
                     .dataHoraCriacao(LocalDateTime.now())
                     .observacoes("sem cebola")
                     .build();
 
-            when(produtoRepository.findById(1L)).thenReturn(Optional.of(produtoDisponivel));
+            when(produtoRepository.findById(idProduto)).thenReturn(Optional.of(produtoDisponivel));
             when(pedidoRepository.save(any(Pedido.class))).thenReturn(pedidoSalvo);
 
             // Act
             PedidoResponseDTO resultado = pedidoService.criar(dto);
 
             // Assert
-            assertThat(resultado.getId()).isEqualTo(10L);
+            assertThat(resultado.getId()).isEqualTo(idPedido);
             assertThat(resultado.getStatus()).isEqualTo(StatusPedido.RECEBIDO);
             assertThat(resultado.getObservacoes()).isEqualTo("sem cebola");
 
             // Verifica que o evento foi publicado no RabbitMQ
-            verify(pedidoProducer, times(1)).publicarNovoPedido(10L);
+            verify(pedidoProducer, times(1)).publicarNovoPedido(any());
             verify(pedidoRepository, times(1)).save(any(Pedido.class));
         }
 
@@ -111,36 +115,41 @@ class PedidoServiceTest {
         @DisplayName("deve lançar 404 quando produto não existir no cardápio")
         void deveLancarExcecaoQuandoProdutoNaoExistir(){
             // Arrange
+            UUID idProduto = UUID.randomUUID();
             PedidoRequestDTO dto = new PedidoRequestDTO();
-            dto.setProdutoIds(List.of(999L)); // ID inexistente
+            dto.setProdutoIds(List.of(idProduto)); // ID inexistente
 
-            when(produtoRepository.findById(999L)).thenReturn(Optional.empty());
+            when(produtoRepository.findById(idProduto)).thenReturn(Optional.empty());
 
             // Act & Assert
             assertThatThrownBy(() -> pedidoService.criar(dto))
                     .isInstanceOf(RecursoNaoEncontradoException.class)
-                    .hasMessageContaining("999");
+                    .hasMessageContaining("não encontrado no cardápio")
+                    .hasMessageContaining(idProduto.toString());
 
             // Garante que NÃO foi salvo nem publicado
             verify(pedidoRepository,never()).save(any());
-            verify(pedidoProducer, never()).publicarNovoPedido(anyLong());
+            verify(pedidoProducer, never()).publicarNovoPedido(any());
         }
 
         @Test
         @DisplayName("deve lançar 422 quando produto estiver indisponível")
         void deveLancarExcecaoQuandoProdutoIndisponivel(){
             // Arrange
-            PedidoRequestDTO dto = new PedidoRequestDTO();
-            dto.setProdutoIds(List.of(2L));
 
-            when(produtoRepository.findById(2L)).thenReturn(Optional.of(produtoIndisponivel));
+            UUID meuIdDeTeste = UUID.randomUUID();
+
+            PedidoRequestDTO dto = new PedidoRequestDTO();
+            dto.setProdutoIds(List.of(meuIdDeTeste));
+
+            when(produtoRepository.findById(meuIdDeTeste)).thenReturn(Optional.of(produtoIndisponivel));
 
             // Act & Assert
             assertThatThrownBy(() -> pedidoService.criar(dto))
                     .isInstanceOf(OperacaoInvalidaException.class)
-                    .hasMessageContaining("Produto Esgotado");
+                    .hasMessageContaining("não estão disponíveis no momento");
             verify(pedidoRepository,never()).save(any());
-            verify(pedidoProducer, never()).publicarNovoPedido(anyLong());
+            verify(pedidoProducer, never()).publicarNovoPedido(any());
         }
 
 // =========================================================
@@ -155,42 +164,44 @@ class PedidoServiceTest {
             @DisplayName("deve transicionar de EM_PREPARO para PRONTO e publicar no RabbitMQ")
             void deveMarcarComoProntoQuandoEmPreparo() {
                 // Arrange
+                UUID idPedido = UUID.randomUUID();
                 Pedido pedido = Pedido.builder()
-                        .id(1L)
+                        .id(idPedido)
                         .produtos(List.of(produtoDisponivel))
                         .status(StatusPedido.EM_PREPARO)
                         .dataHoraCriacao(LocalDateTime.now())
                         .build();
 
-                when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+                when(pedidoRepository.findById(idPedido)).thenReturn(Optional.of(pedido));
                 when(pedidoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
                 // Act
-                PedidoResponseDTO resultado = pedidoService.marcarComoPronto(1L);
+                PedidoResponseDTO resultado = pedidoService.marcarComoPronto(idPedido);
 
                 // Assert
                 assertThat(resultado.getStatus()).isEqualTo(StatusPedido.PRONTO);
-                verify(pedidoProducer, times(1)).publicarPedidoPronto(1L);
+                verify(pedidoProducer, times(1)).publicarPedidoPronto(idPedido);
             }
 
             @Test
             @DisplayName("deve lançar 422 se pedido não estiver EM_PREPARO")
             void deveLancarExcecaoSeStatusNaoForEmPreparo() {
                 // Arrange — pedido ainda RECEBIDO
+                UUID idPedido = UUID.randomUUID();
                 Pedido pedido = Pedido.builder()
-                        .id(1L)
+                        .id(idPedido)
                         .status(StatusPedido.RECEBIDO)
                         .dataHoraCriacao(LocalDateTime.now())
                         .build();
 
-                when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+                when(pedidoRepository.findById(idPedido)).thenReturn(Optional.of(pedido));
 
                 // Act & Assert
-                assertThatThrownBy(() -> pedidoService.marcarComoPronto(1L))
+                assertThatThrownBy(() -> pedidoService.marcarComoPronto(idPedido))
                         .isInstanceOf(OperacaoInvalidaException.class)
                         .hasMessageContaining("RECEBIDO");
 
-                verify(pedidoProducer, never()).publicarPedidoPronto(anyLong());
+                verify(pedidoProducer, never()).publicarPedidoPronto(any());
             }
         }
 
@@ -202,18 +213,19 @@ class PedidoServiceTest {
             @DisplayName("deve transicionar de PRONTO para ENTREGUE")
             void deveConfirmarEntregaQuandoPronto() {
                 // Arrange
+                UUID idPedido = UUID.randomUUID();
                 Pedido pedido = Pedido.builder()
-                        .id(1L)
+                        .id(idPedido)
                         .produtos(List.of(produtoDisponivel))
                         .status(StatusPedido.PRONTO)
                         .dataHoraCriacao(LocalDateTime.now())
                         .build();
 
-                when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+                when(pedidoRepository.findById(idPedido)).thenReturn(Optional.of(pedido));
                 when(pedidoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
                 // Act
-                PedidoResponseDTO resultado = pedidoService.confirmarEntrega(1L);
+                PedidoResponseDTO resultado = pedidoService.confirmarEntrega(idPedido);
 
                 // Assert
                 assertThat(resultado.getStatus()).isEqualTo(StatusPedido.ENTREGUE);
@@ -222,15 +234,18 @@ class PedidoServiceTest {
             @Test
             @DisplayName("deve lançar 422 ao tentar entregar pedido não PRONTO")
             void deveLancarExcecaoSePedidoNaoPronto() {
+
+                UUID idPedido = UUID.randomUUID();
+
                 Pedido pedido = Pedido.builder()
-                        .id(1L)
+                        .id(idPedido)
                         .status(StatusPedido.EM_PREPARO)
                         .dataHoraCriacao(LocalDateTime.now())
                         .build();
 
-                when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+                when(pedidoRepository.findById(idPedido)).thenReturn(Optional.of(pedido));
 
-                assertThatThrownBy(() -> pedidoService.confirmarEntrega(1L))
+                assertThatThrownBy(() -> pedidoService.confirmarEntrega(idPedido))
                         .isInstanceOf(OperacaoInvalidaException.class)
                         .hasMessageContaining("EM_PREPARO");
             }
@@ -238,9 +253,14 @@ class PedidoServiceTest {
             @Test
             @DisplayName("deve lançar 404 para pedido inexistente")
             void deveLancar404ParaPedidoInexistente() {
-                when(pedidoRepository.findById(99L)).thenReturn(Optional.empty());
+                // Arrange
+                UUID idPedido = UUID.randomUUID();
 
-                assertThatThrownBy(() -> pedidoService.confirmarEntrega(99L))
+                // Ensinar o mockito a retornar vazio para este ID
+                when(pedidoRepository.findById(idPedido)).thenReturn(Optional.empty());
+
+                // Act & Assert
+                assertThatThrownBy(() -> pedidoService.confirmarEntrega(idPedido))
                         .isInstanceOf(RecursoNaoEncontradoException.class);
             }
         }

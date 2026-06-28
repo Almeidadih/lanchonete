@@ -18,6 +18,7 @@ import java.util.UUID;
 @ToString(exclude = "itens") // evita loop em relacionamentos
 public class Pedido {
 
+    // Iniciando o Projeto 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
