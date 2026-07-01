@@ -1,4 +1,4 @@
-package com.lanchonete.messaging;
+package com.lanchonete.messaging.rabbitmq.consumer;
 
 
 import com.lanchonete.domain.entity.Pedido;

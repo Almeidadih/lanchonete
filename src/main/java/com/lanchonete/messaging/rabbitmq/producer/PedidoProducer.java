@@ -1,4 +1,4 @@
-package com.lanchonete.messaging;
+package com.lanchonete.messaging.rabbitmq.producer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

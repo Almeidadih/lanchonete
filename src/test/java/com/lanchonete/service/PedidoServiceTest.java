@@ -8,7 +8,7 @@ import com.lanchonete.dto.PedidoRequestDTO;
 import com.lanchonete.dto.PedidoResponseDTO;
 import com.lanchonete.exception.OperacaoInvalidaException;
 import com.lanchonete.exception.RecursoNaoEncontradoException;
-import com.lanchonete.messaging.PedidoProducer;
+import com.lanchonete.messaging.rabbitmq.producer.PedidoProducer;
 import com.lanchonete.repository.PedidoRepository;
 import com.lanchonete.repository.ProdutoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +28,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 

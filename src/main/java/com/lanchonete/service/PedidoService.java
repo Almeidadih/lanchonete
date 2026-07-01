@@ -7,7 +7,7 @@ import com.lanchonete.dto.PedidoRequestDTO;
 import com.lanchonete.dto.PedidoResponseDTO;
 import com.lanchonete.exception.OperacaoInvalidaException;
 import com.lanchonete.exception.RecursoNaoEncontradoException;
-import com.lanchonete.messaging.PedidoProducer;
+import com.lanchonete.messaging.rabbitmq.producer.PedidoProducer;
 import com.lanchonete.repository.PedidoRepository;
 import com.lanchonete.repository.ProdutoRepository;
 import lombok.RequiredArgsConstructor;
