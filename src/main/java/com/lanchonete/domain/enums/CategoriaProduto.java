@@ -4,5 +4,6 @@ public enum CategoriaProduto {
     LANCHE,
     ACOMPANHAMENTO,
     BEBIDA,
+    COMBO,
     SOBREMESA
 }
