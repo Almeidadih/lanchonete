@@ -2,8 +2,10 @@ package com.lanchonete.domain.enums;
 
 public enum StatusPedido {
 
-    RECEBIDO,
+    CONFIRMADO,
     EM_PREPARO,
+    RECEBIDO,
+    CANCELADO,
     PRONTO,
     ENTREGUE
 }
